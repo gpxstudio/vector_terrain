@@ -78,6 +78,7 @@ impl TileEncoder {
             .metadata(&metadata)
             .min_zoom(min_zoom)
             .max_zoom(max_zoom)
+            .center_zoom(min_zoom)
             .create(file)?;
         Ok(Self {
             writer,
