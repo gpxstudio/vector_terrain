@@ -337,13 +337,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap();
 
                 // Send results through channels (non-blocking)
-                if args.hillshading {
+                if args.hillshading && !results.0.is_empty() {
                     let _ = hillshading_tx.send((tile, results.0)).await;
                 }
-                if args.contours_m {
+                if args.contours_m && !results.1.is_empty() {
                     let _ = contours_m_tx.send((tile, results.1)).await;
                 }
-                if args.contours_ft {
+                if args.contours_ft && !results.2.is_empty() {
                     let _ = contours_ft_tx.send((tile, results.2)).await;
                 }
 
