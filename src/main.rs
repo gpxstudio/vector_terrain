@@ -27,6 +27,7 @@ const PADDING: usize = 16;
 const THRESHOLDS: [f64; 3] = [112.0, 144.0, 176.0];
 const COLORS:  [u8; 3] = [224, 160, 128];
 const FEET_TO_METER: f64 = 0.3048;
+const CONTOUR_LINES_MIN_ZOOM: u8 = 11;
 
 /// A utility for converting a WebP terrain PMTiles file
 /// to another PMTiles file with vector hillshading and contour lines
@@ -123,6 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let reader = Arc::new(ElevationReader::new(
         &args.input, TILE_SIZE, PADDING, args.min_zoom, args.max_zoom
     ).await?);
+    let metadata = reader.get_metadata().await;
 
     // Create channels for each encoder type
     let (hillshading_tx, hillshading_rx) = mpsc::channel(32);
@@ -131,6 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Spawn encoder tasks
     let hillshading_task = if args.hillshading {
+        let metadata = metadata.clone();
         Some(tokio::task::spawn_blocking(move || {
             let mut encoder = TileEncoder::new(
                 "hillshading.pmtiles",
@@ -139,6 +142,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 FEET_TO_METER,
                 true,
                 true,
+                metadata,
+                args.min_zoom,
+                args.max_zoom,
             ).map_err(|e| format!("Failed to create encoder: {}", e))?;
             let mut rx = hillshading_rx;
             while let Some((tile, bands)) = rx.blocking_recv() {
@@ -154,6 +160,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let contours_m_task = if args.contours_m {
+        let metadata = metadata.clone();
         Some(tokio::task::spawn_blocking(move || {
             let mut encoder = TileEncoder::new(
                 "contours_m.pmtiles",
@@ -162,6 +169,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 FEET_TO_METER,
                 false,
                 true,
+                metadata,
+                args.min_zoom.max(CONTOUR_LINES_MIN_ZOOM),
+                args.max_zoom,
             ).map_err(|e| format!("Failed to create encoder: {}", e))?;
             let mut rx = contours_m_rx;
             while let Some((tile, contours)) = rx.blocking_recv() {
@@ -177,6 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let contours_ft_task = if args.contours_ft {
+        let metadata = metadata.clone();
         Some(tokio::task::spawn_blocking(move || {
             let mut encoder = TileEncoder::new(
                 "contours_ft.pmtiles",
@@ -185,6 +196,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 FEET_TO_METER,
                 false,
                 false,
+                metadata,
+                args.min_zoom.max(CONTOUR_LINES_MIN_ZOOM),
+                args.max_zoom,
             ).map_err(|e| format!("Failed to create encoder: {}", e))?;
             let mut rx = contours_ft_rx;
             while let Some((tile, contours)) = rx.blocking_recv() {
@@ -255,9 +269,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let c =
                         ContourBuilder::new(TILE_SIZE + 2 * PADDING, TILE_SIZE + 2 * PADDING, true);
 
-                    let contours_m = if args.contours_m && tile.z() >= 11 {
+                    let contours_m = if args.contours_m && tile.z() >= CONTOUR_LINES_MIN_ZOOM {
                         let thresholds =
-                            bounds.get_thresholds(if tile.z() == 11 { 100.0 } else { 25.0 });
+                            bounds.get_thresholds(if tile.z() == CONTOUR_LINES_MIN_ZOOM { 100.0 } else { 25.0 });
                         if thresholds.is_empty() {
                             Vec::new()
                         } else {
@@ -268,8 +282,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         Vec::new()
                     };
 
-                    let contours_ft = if args.contours_ft && tile.z() >= 11 {
-                        let thresholds = bounds.get_thresholds(if tile.z() == 11 {
+                    let contours_ft = if args.contours_ft && tile.z() >= CONTOUR_LINES_MIN_ZOOM {
+                        let thresholds = bounds.get_thresholds(if tile.z() == CONTOUR_LINES_MIN_ZOOM {
                             400.0 * FEET_TO_METER
                         } else {
                             100.0 * FEET_TO_METER

@@ -111,6 +111,10 @@ impl ElevationReader {
         })
     }
 
+    pub async fn get_metadata(&self) -> String {
+        self.reader.get_metadata().await.map_or("{}".to_string(), |m| m)
+    }
+
     pub fn iter_tiles(&self) -> impl Stream<Item = Result<TileCoord, ElevationReaderError>> {
         stream! {
             let mut entries = self.reader.clone().entries();

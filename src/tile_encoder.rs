@@ -69,9 +69,16 @@ impl TileEncoder {
         feet_to_meter: f64,
         hillshading: bool,
         metric: bool,
+        metadata: String,
+        min_zoom: u8,
+        max_zoom: u8,
     ) -> Result<Self, TileEncoderError> {
         let file = File::create(path)?;
-        let writer = PmTilesWriter::new(TileType::Mvt).create(file)?;
+        let writer = PmTilesWriter::new(TileType::Mvt)
+            .metadata(&metadata)
+            .min_zoom(min_zoom)
+            .max_zoom(max_zoom)
+            .create(file)?;
         Ok(Self {
             writer,
             tile_size,
